@@ -34,7 +34,7 @@
         setInterval(getServerList, 18E4);
         mainCanvas = nCanvas = document.getElementById("canvas");
         ctx = mainCanvas.getContext("2d");
-        /*mainCanvas.onmousedown = function (event) {
+        mainCanvas.onmousedown = function (event) {
             if (isTouchStart) {
                 var xOffset = event.clientX - (5 + canvasWidth / 5 / 2),
                     yOffset = event.clientY - (5 + canvasWidth / 5 / 2);
@@ -50,7 +50,7 @@
             rawMouseY = event.clientY;
             mouseCoordinateChange();
             sendMouseMove()
-        };*/
+        };
         mainCanvas.onmousemove = function (event) {
             rawMouseX = event.clientX;
             rawMouseY = event.clientY;
@@ -701,12 +701,38 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
                 node.oy = node.y;
                 node.oSize = node.size;
                 node.color = colorstr;
+                if (-1 != nodesOnScreen.indexOf(nodeid) && size < node.oSize) {
+                    node.oSize = node.size = size;
+                    node.points = [];
+                    node.pointsAcc = [];
+                    node.createPoints();
+                }
             } else {
                 node = new Cell(nodeid, posX, posY, size, colorstr, name);
                 nodelist.push(node);
                 nodes[nodeid] = node;
                 node.ka = posX;
                 node.la = posY;
+                if (-1 != nodesOnScreen.indexOf(nodeid) && 0 < playerCells.length && !flagVirus) {
+                    var sourceCell = playerCells[0];
+                    var sourceDist = Math.pow(sourceCell.x - posX, 2) + Math.pow(sourceCell.y - posY, 2);
+                    for (var sourceIndex = 1; sourceIndex < playerCells.length; sourceIndex++) {
+                        var checkCell = playerCells[sourceIndex],
+                            checkDist = Math.pow(checkCell.x - posX, 2) + Math.pow(checkCell.y - posY, 2);
+                        if (checkDist < sourceDist) {
+                            sourceCell = checkCell;
+                            sourceDist = checkDist;
+                        }
+                    }
+                    var splitStart = .7;
+                    node.ox = node.x = sourceCell.x + (posX - sourceCell.x) * splitStart;
+                    node.oy = node.y = sourceCell.y + (posY - sourceCell.y) * splitStart;
+                    node.oSize = node.size = size;
+                    node.wasSimpleDrawing = true;
+                    node.points = [];
+                    node.pointsAcc = [];
+                    node.createPoints();
+                }
             }
             node.isVirus = flagVirus;
             node.isAgitated = flagAgitated;
@@ -816,7 +842,8 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
         if (0 != playerCells.length) {
             for (var newViewZoom = 0, i = 0; i < playerCells.length; i++) newViewZoom += playerCells[i].size;
             newViewZoom = Math.pow(Math.min(64 / newViewZoom, 1), .4) * viewRange();
-            viewZoom = (9 * viewZoom + newViewZoom) / 10
+            var zoomSmooth = timestamp < cameraSmoothUntil ? 36 : 20;
+            viewZoom = ((zoomSmooth - 1) * viewZoom + newViewZoom) / zoomSmooth
         }
     }
 
@@ -825,6 +852,10 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
         ++cb;
         timestamp = oldtime;
         if (0 < playerCells.length) {
+            if (playerCells.length != lastPlayerCellCount) {
+                cameraSmoothUntil = timestamp + 420;
+                lastPlayerCellCount = playerCells.length;
+            }
             calcViewZoom();
             var c = a = 0;
             for (var d = 0; d < playerCells.length; d++) {
@@ -835,9 +866,11 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
             posX = a;
             posY = c;
             posSize = viewZoom;
-            nodeX = (nodeX + a) / 2;
-            nodeY = (nodeY + c) / 2
+            var centerSmooth = timestamp < cameraSmoothUntil ? 32 : 12;
+            nodeX = ((centerSmooth - 1) * nodeX + a) / centerSmooth;
+            nodeY = ((centerSmooth - 1) * nodeY + c) / centerSmooth
         } else {
+            lastPlayerCellCount = 0;
             nodeX = (29 * nodeX + posX) / 30;
             nodeY = (29 * nodeY + posY) / 30;
             viewZoom = (9 * viewZoom + posSize * viewRange()) / 10;
@@ -1112,6 +1145,9 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
         showSkin = true,
         showName = true,
         showColor = false,
+        smoothRender = 2,
+        lastPlayerCellCount = 0,
+        cameraSmoothUntil = 0,
         ua = false,
         userScore = 0,
         showDarkTheme = false,
@@ -1159,6 +1195,9 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
     };
     wHandle.setColors = function (arg) {
         showColor = arg
+    };
+    wHandle.setSmooth = function (arg) {
+        smoothRender = arg ? 2 : .4
     };
     wHandle.setShowMass = function (arg) {
         showMass = arg
@@ -1394,7 +1433,7 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
         updatePos: function () {
             if (0 == this.id) return 1;
             var a;
-            a = (timestamp - this.updateTime) / 120;
+            a = (timestamp - this.updateTime) / 50;
             a = 0 > a ? 0 : 1 < a ? 1 : a;
             var b = 0 > a ? 0 : 1 < a ? 1 : a;
             this.getNameSize();
@@ -1414,12 +1453,25 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
                 return !(this.x + this.size + 40 < nodeX - canvasWidth / 2 / viewZoom || this.y + this.size + 40 < nodeY - canvasHeight / 2 / viewZoom || this.x - this.size - 40 > nodeX + canvasWidth / 2 / viewZoom || this.y - this.size - 40 > nodeY + canvasHeight / 2 / viewZoom);
             }
         },
+        getStrokeColor: function () {
+            var r = (~~(parseInt(this.color.substr(1, 2), 16) * .9)).toString(16),
+                g = (~~(parseInt(this.color.substr(3, 2), 16) * .9)).toString(16),
+                b = (~~(parseInt(this.color.substr(5, 2), 16) * .9)).toString(16);
+            if (r.length == 1) r = "0" + r;
+            if (g.length == 1) g = "0" + g;
+            if (b.length == 1) b = "0" + b;
+            return "#" + r + g + b;
+        },
         drawOneCell: function (ctx) {
             if (this.shouldRender()) {
-                var b = (0 != this.id && !this.isVirus && !this.isAgitated && .4 > viewZoom);
-                if (5 > this.getNumPoints()) b = true;
+                var b = (0 != this.id && !this.isVirus && !this.isAgitated && smoothRender > viewZoom);
+                if (10 > this.getNumPoints()) b = true;
                 if (this.wasSimpleDrawing && !b)
                     for (var c = 0; c < this.points.length; c++) this.points[c].size = this.size;
+                var bigPointSize = this.size;
+                if (!this.wasSimpleDrawing) {
+                    for (var c = 0; c < this.points.length; c++) bigPointSize = Math.max(this.points[c].size, bigPointSize);
+                }
                 this.wasSimpleDrawing = b;
                 ctx.save();
                 this.drawTime = timestamp;
@@ -1433,11 +1485,13 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
                     ctx.strokeStyle = "#AAAAAA";
                 } else {
                     ctx.fillStyle = this.color;
-                    ctx.strokeStyle = this.color;
+                    ctx.strokeStyle = b ? this.getStrokeColor() : this.color;
                 }
+                ctx.beginPath();
                 if (b) {
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI, false);
+                    var lw = this.size * .03;
+                    ctx.lineWidth = lw;
+                    ctx.arc(this.x, this.y, this.size - lw * .5 + 5, 0, 2 * Math.PI, false);
                 }
                 else {
                     this.movePoints();
@@ -1481,7 +1535,7 @@ var INVERT_WHEEL  = false;   // true kalau mau kebalik (scroll up = zoom in)
                 if (!(null == e || c)) {
                     ctx.save();
                     ctx.clip();
-                    ctx.drawImage(e, this.x - this.size, this.y - this.size, 2 * this.size, 2 * this.size);
+                    ctx.drawImage(e, this.x - bigPointSize, this.y - bigPointSize, 2 * bigPointSize, 2 * bigPointSize);
                     ctx.restore();
                 }
                 if ((showColor || 15 < this.size) && !b) {

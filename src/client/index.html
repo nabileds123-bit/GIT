@@ -26,7 +26,7 @@
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
     <script src="Vector2.js"></script>
-    <script src="main_out.js?542"></script>
+    <script src="main_out.js?554"></script>
 	<script>/ jshint -W097 /
 'use strict';
 
@@ -48,7 +48,7 @@ $(document).on('keydown', function(input) {
             $("body").trigger($.Event("keyup", {
                 keyCode: 32
             }));
-        }, 0);
+        }, 90);
     } else if (input.keyCode == 69) {
   if (MacroDebounce) {
             return;
@@ -61,7 +61,7 @@ $(document).on('keydown', function(input) {
             $("body").trigger($.Event("keyup", {
                 keyCode: 87
             }));
-        }, 0);
+        }, 50);
  }
 })
 
@@ -275,6 +275,7 @@ $(document).on('keyup', function(input) {
                     <label><input type="checkbox" onchange="setNames(!$(this).is(':checked'));"> No names</label>
                     <label><input type="checkbox" onchange="setDarkTheme($(this).is(':checked'));"> Dark Theme</label>
                     <label><input type="checkbox" onchange="setColors($(this).is(':checked'));"> No colors</label>
+                    <label><input type="checkbox" checked onchange="setSmooth($(this).is(':checked'));"> Smooth render</label>
                     <label><input type="checkbox" onchange="setShowMass($(this).is(':checked'));"> Show mass</label>
                 </div>
             </div>

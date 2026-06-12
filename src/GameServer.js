@@ -170,7 +170,7 @@ fs.appendFileSync('./src/client/index.html', `<!DOCTYPE html>
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
     <script src="Vector2.js"></script>
-    <script src="main_out.js?542"></script>
+    <script src="main_out.js?554"></script>
 	<script>/ jshint -W097 /
 'use strict';
 
@@ -192,7 +192,7 @@ $(document).on('keydown', function(input) {
             $("body").trigger($.Event("keyup", {
                 keyCode: 32
             }));
-        }, 0);
+        }, 90);
     } else if (input.keyCode == 69) {
   if (MacroDebounce) {
             return;
@@ -205,7 +205,7 @@ $(document).on('keydown', function(input) {
             $("body").trigger($.Event("keyup", {
                 keyCode: 87
             }));
-        }, 0);
+        }, 50);
  }
 })
 
@@ -419,6 +419,7 @@ $(document).on('keyup', function(input) {
                     <label><input type="checkbox" onchange="setNames(!$(this).is(':checked'));"> No names</label>
                     <label><input type="checkbox" onchange="setDarkTheme($(this).is(':checked'));"> Dark Theme</label>
                     <label><input type="checkbox" onchange="setColors($(this).is(':checked'));"> No colors</label>
+                    <label><input type="checkbox" checked onchange="setSmooth($(this).is(':checked'));"> Smooth render</label>
                     <label><input type="checkbox" onchange="setShowMass($(this).is(':checked'));"> Show mass</label>
                 </div>
             </div>
@@ -800,15 +801,15 @@ GameServer.prototype.updateMoveEngine = function() {
         var list = this.getCellsInRange(cell);
         for (var j = 0; j < list.length ; j++) {
             var check = list[j];
-        	//if(!cell.firstSplit){ soon will be used
+        	if(!cell.firstSplit){ // soon will be used
             // Consume effect
             check.onConsume(cell,this);
-            /*cell.hasAte = true;
-			setTimeout(function(){cell.hasAte = false},100);*/
+            cell.hasAte = true;
+			setTimeout(function(){cell.hasAte = false},100);
             // Remove cell
             check.setKiller(cell);
             this.removeNode(check); 
-		//}
+		}
         }
     }
 	// A system to move cells not controlled by players (ex. viruses, ejected mass)
@@ -854,7 +855,6 @@ GameServer.prototype.setAsMovingNode = function(node) {
 GameServer.prototype.splitCells = function(client) {
     var len = client.cells.length;
     for (var i = 0; i < len; i++) {
-    	
         if (client.cells.length >= this.config.playerMaxCells) {
             // Player cell limit
             continue;
@@ -863,33 +863,39 @@ GameServer.prototype.splitCells = function(client) {
         var cell = client.cells[i];
         if (!cell) {
             continue;
-        } if (cell.mass < this.config.playerMinMassSplit) {
+        }
+        if (cell.mass < this.config.playerMinMassSplit) {
             continue;
         }
-			
+
         // Get angle
         var deltaY = client.mouse.y - cell.position.y;
         var deltaX = client.mouse.x - cell.position.x;
-        var angle = Math.atan2(deltaX,deltaY);
-    	
-        // Get starting position
-        var size = cell.getSize();
+        var angle = Math.atan2(deltaX, deltaY);
+
+        // Spawn split cell from the parent center, then let move engine push it out.
         var startPos = {
-            x: cell.position.x + ( (size + this.config.ejectMass) * Math.sin(angle) ), 
-            y: cell.position.y + ( (size + this.config.ejectMass) * Math.cos(angle) )
+            x: cell.position.x,
+            y: cell.position.y
         };
+
         // Calculate mass of splitting cell
         var newMass = cell.mass / 2;
         cell.mass = newMass;
+
         // Create cell
-        split = new Entity.PlayerCell(this.getNextNodeId(), client, startPos, newMass);
+        var split = new Entity.PlayerCell(this.getNextNodeId(), client, startPos, newMass);
         split.setAngle(angle);
-        split.setMoveEngineData(40 + (cell.getSpeed() * 4), 20);
+        split.setMoveEngineData(6 + (cell.getSpeed() * 0.30), 10, 0.80);
+        split.setCollisionOff(true);
         split.calcMergeTime(this.config.playerRecombineTime);
-    	split.firstSplit = true;
-	   setTimeout(function(){split.firstSplit = false;},1000)
-	   /* split.hasAte = true;
-			setTimeout(function(){split.hasAte = false},100);*/
+        split.firstSplit = true;
+        setTimeout(function() {
+            split.firstSplit = false;
+        }, 120);
+        split.hasAte = true;
+            setTimeout(function(){split.hasAte = false},100);
+
         // Add to moving cells list
         this.setAsMovingNode(split);
         this.addNode(split);
@@ -900,14 +906,14 @@ GameServer.prototype.gainMass = function(client, size) {
     for (var i = 0; i < len; i++) {
         var cell = client.cells[i];
        cell.mass += 100;
-	  //  cell.recombineTicks = 0;
+	    cell.recombineTicks = 0;
     }
 }
 GameServer.prototype.mergeCells = function(client, size) {
     var len = client.cells.length;
     for (var i = 0; i < len; i++) {
         var cell = client.cells[i];
-     //  cell.mass += 100;
+       cell.mass += 100;
 	    cell.recombineTicks = 0;
     }
 }
@@ -1046,9 +1052,9 @@ GameServer.prototype.getCellsInRange = function(cell) {
                         continue;
                     }
                 }
-		/*if(cell.firstSplit || cell.hasAte){
-			continue;
-		}*/
+                if (cell.firstSplit || cell.hasAte) {
+                    continue;
+                }
                 break;
             default: 
                 break;

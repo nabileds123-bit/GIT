@@ -13,6 +13,7 @@ function Cell(nodeId, owner, position, mass, gameServer) {
     
     this.moveEngineTicks = 0; // Amount of times to loop the movement function
     this.moveEngineSpeed = 0;
+    this.moveEngineDecay = .75;
     this.angle = 0; // Angle of movement
     
     if (this.owner) {
@@ -60,7 +61,7 @@ Cell.prototype.getSpeed = function() {
 	// Old formula: 5 + (20 * (1 - (this.mass/(70+this.mass))));
 	// Based on 50ms ticks. If updateMoveEngine interval changes, change 50 to new value
 	// (should possibly have a config value for this?)
-	return 745.28 * Math.pow(this.mass, -0.222) * 50 / 1000;
+	return 745.28 * Math.pow(this.mass, -0.18) * 50 / 1000;
 }
 
 Cell.prototype.setAngle = function(radians) {
@@ -71,9 +72,10 @@ Cell.prototype.getAngle = function() {
 	return this.angle;
 }
 
-Cell.prototype.setMoveEngineData = function(speed, ticks) {
+Cell.prototype.setMoveEngineData = function(speed, ticks, decay) {
     this.moveEngineSpeed = speed;
     this.moveEngineTicks = ticks;
+    this.moveEngineDecay = typeof decay == "number" ? decay : .75;
 }
 
 Cell.prototype.getMoveTicks = function() {
@@ -237,7 +239,7 @@ Cell.prototype.calcMovePhys = function(config) {
     var Y = this.position.y + ( this.moveEngineSpeed * Math.cos(this.angle) );
 	
     // Movement engine
-    this.moveEngineSpeed *= .75; // Decaying speed
+    this.moveEngineSpeed *= this.moveEngineDecay; // Decaying speed
     this.moveEngineTicks--;
 	 
     // Border check - Bouncy physics
